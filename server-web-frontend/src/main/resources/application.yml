@@ -1,0 +1,6 @@
+app-simple-broker : /topic
+app-application-prefix : /app
+app-endpoint : gs-guide-websocket
+
+server:
+  port: 8080

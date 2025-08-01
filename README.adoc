@@ -1,0 +1,247 @@
+# WebSocket Messaging Application Documentation
+
+## Overview
+This application demonstrates a simple WebSocket-based messaging system using STOMP protocol with Spring Boot backend and JavaScript frontend. It allows users to connect to a WebSocket server, send their name, and receive greetings in real-time.
+
+## Backend Components
+
+### 1. Greeting.java
+```java
+package com.example.messagingstompwebsocket;
+
+import lombok.Data;
+import lombok.NonNull;
+
+@Data
+public class Greeting {
+    @NonNull private String content;
+}
+```
+- **Purpose**: Model class for greeting messages sent to clients
+- **Fields**:
+- `content`: The greeting message content (required)
+
+### 2. HelloMessage.java
+```java
+package com.example.messagingstompwebsocket;
+
+import lombok.Data;
+import lombok.NonNull;
+
+@Data
+public class HelloMessage {
+    @NonNull private String name;
+}
+```
+- **Purpose**: Model class for messages received from clients
+- **Fields**:
+- `name`: The name sent by the client (required)
+
+### 3. GreetingController.java
+```java
+package com.example.messagingstompwebsocket;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.SendTo;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.util.HtmlUtils;
+
+@Slf4j
+@Controller
+public class GreetingController {
+
+    @MessageMapping("/hello")
+    @SendTo("/topic/greetings")
+    public Greeting greeting(HelloMessage message) throws Exception {
+        String s = "Hello, " + HtmlUtils.htmlEscape(message.getName() + "!");
+        log.info("Message: {}",message.getName());
+        return new Greeting(s);
+    }
+}
+```
+- **Purpose**: Handles WebSocket messages and generates responses
+- **Endpoints**:
+- `@MessageMapping("/hello")`: Receives messages sent to "/app/hello"
+- `@SendTo("/topic/greetings")`: Broadcasts responses to all subscribers of "/topic/greetings"
+- **Functionality**:
+- Receives a `HelloMessage` containing a name
+- Creates a greeting response with HTML escaped content (XSS protection)
+- Logs the received name
+- Returns a `Greeting` object that gets broadcast to all subscribers
+
+### 4. WebSocketConfig.java
+```java
+package com.example.messagingstompwebsocket;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
+import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
+import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+
+@Slf4j
+@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    @Value("${app-simple-broker}")
+    String simpleBroker;
+    @Value("${app-application-prefix}")
+    String applicationPrefix;
+    @Value("${app-endpoint}")
+    String endpoint;
+
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry config) {
+        config.enableSimpleBroker(simpleBroker);
+        config.setApplicationDestinationPrefixes(applicationPrefix);
+    }
+
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        log.info("registerStompEndpoints");
+        registry.addEndpoint(endpoint);
+    }
+}
+```
+- **Purpose**: Configures WebSocket and STOMP messaging
+- **Configuration**:
+- `@EnableWebSocketMessageBroker`: Enables WebSocket message handling
+- Message broker is configured to:
+- Use simple broker for destinations prefixed with "/topic" (configurable via `app-simple-broker`)
+- Set application destination prefix to "/app" (configurable via `app-application-prefix`)
+- STOMP endpoint is registered at "/gs-guide-websocket" (configurable via `app-endpoint`)
+
+### 5. MessagingStompWebsocketApplication.java
+```java
+package com.example.messagingstompwebsocket;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class MessagingStompWebsocketApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MessagingStompWebsocketApplication.class, args);
+    }
+}
+```
+- **Purpose**: Main Spring Boot application class
+- **Port**: Runs on 8080 by default (configurable in application.yml)
+
+## Frontend Components
+
+### 1. HTML (index.html)
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hello WebSocket</title>
+    <!-- Includes Bootstrap CSS and jQuery -->
+</head>
+<body>
+<div id="main-content" class="container">
+    <!-- Connection controls -->
+    <!-- Name input form -->
+    <!-- Greetings display table -->
+</div>
+</body>
+</html>
+```
+- **Structure**:
+- Connection controls (Connect/Disconnect buttons)
+- Name input form with Send button
+- Table to display received greetings
+
+### 2. JavaScript (app.js)
+```javascript
+const stompClient = new StompJs.Client({
+    brokerURL: 'ws://localhost:8080/gs-guide-websocket'
+});
+
+// WebSocket event handlers
+stompClient.onConnect = (frame) => { /* ... */ };
+stompClient.onWebSocketError = (error) => { /* ... */ };
+stompClient.onStompError = (frame) => { /* ... */ };
+
+// UI functions
+function setConnected(connected) { /* ... */ }
+function connect() { /* ... */ }
+function disconnect() { /* ... */ }
+function sendName() { /* ... */ }
+function showGreeting(message) { /* ... */ }
+
+// Event bindings
+$(function () {
+    // Form submit prevention and button click handlers
+});
+```
+- **Functionality**:
+- Creates STOMP client connected to "ws://localhost:8080/gs-guide-websocket"
+- Handles connection events and errors
+- Provides functions to:
+- Connect/disconnect from WebSocket
+- Send name to server
+- Display received greetings
+- Sets up UI event handlers
+
+### 3. CSS (main.css)
+```css
+body {
+    background-color: #f5f5f5;
+}
+
+#main-content {
+    /* Styling for main content container */
+}
+```
+- **Purpose**: Basic styling for the application
+
+## Configuration
+
+### application.yml
+```yaml
+app-simple-broker: /topic
+app-application-prefix: /app
+app-endpoint: gs-guide-websocket
+
+server:
+  port: 8080
+```
+- **Configuration Parameters**:
+- STOMP broker destination prefix: `/topic`
+- Application destination prefix: `/app`
+- WebSocket endpoint: `/gs-guide-websocket`
+- Server port: `8080`
+
+## Workflow
+
+1. **Client Connection**:
+- User clicks "Connect" button
+- JavaScript establishes WebSocket connection to "/gs-guide-websocket"
+- Client subscribes to "/topic/greetings" to receive messages
+
+2. **Sending a Message**:
+- User enters name and clicks "Send"
+- Message is sent to "/app/hello" with name as JSON payload
+- Server receives message, creates greeting, and broadcasts to "/topic/greetings"
+- All connected clients receive and display the greeting
+
+3. **Disconnection**:
+- User clicks "Disconnect" to close the WebSocket connection
+
+## Security Considerations
+- The server uses `HtmlUtils.htmlEscape()` to prevent XSS attacks in received messages
+- WebSocket connection is only established when explicitly requested by user
+
+## Dependencies
+- **Backend**:
+- Spring Boot WebSocket/STOMP support
+- Lombok for boilerplate code reduction
+- **Frontend**:
+- jQuery for DOM manipulation
+- STOMP.js for WebSocket communication
+- Bootstrap for basic styling

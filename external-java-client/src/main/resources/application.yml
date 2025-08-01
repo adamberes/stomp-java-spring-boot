@@ -1,0 +1,4 @@
+app-websocket: ws://localhost:8080/gs-guide-websocket
+app-topic: /topic/greetings
+server:
+  port: 8081

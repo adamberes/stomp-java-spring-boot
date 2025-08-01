@@ -1,0 +1,156 @@
+package com.example.messagingstompwebsocket;
+
+import lombok.Data;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+
+@Data
+@RequiredArgsConstructor
+public class Greeting {
+
+	@NonNull private String content;
+
+}
+package com.example.messagingstompwebsocket;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Bean;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.SendTo;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.socket.client.WebSocketConnectionManager;
+import org.springframework.web.socket.client.standard.StandardWebSocketClient;
+import org.springframework.web.util.HtmlUtils;
+
+@Slf4j
+@Controller
+public class GreetingController {
+
+
+	@MessageMapping("/hello")
+	@SendTo("/topic/greetings")
+	public Greeting greeting(HelloMessage message) throws Exception {
+
+		String s = "Hello, " + HtmlUtils.htmlEscape(message.getName() + "!"); //Preventing XSS Attacks
+		log.info("Message: {}",message.getName());
+
+		return new Greeting(s);
+	}
+
+}
+package com.example.messagingstompwebsocket;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Bean;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.SendTo;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.socket.client.WebSocketConnectionManager;
+import org.springframework.web.socket.client.standard.StandardWebSocketClient;
+import org.springframework.web.util.HtmlUtils;
+
+@Slf4j
+@Controller
+public class GreetingController {
+
+
+	@MessageMapping("/hello")
+	@SendTo("/topic/greetings")
+	public Greeting greeting(HelloMessage message) throws Exception {
+
+		String s = "Hello, " + HtmlUtils.htmlEscape(message.getName() + "!");
+		log.info("Message: {}",message.getName());
+
+		return new Greeting(s);
+	}
+
+}
+package com.example.messagingstompwebsocket;
+
+import lombok.Data;
+import lombok.NonNull;
+
+@Data
+public class HelloMessage {
+
+	@NonNull private String name;
+
+}
+package com.example.messagingstompwebsocket;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.web.socket.client.WebSocketConnectionManager;
+import org.springframework.web.socket.client.standard.StandardWebSocketClient;
+
+@SpringBootApplication
+public class MessagingStompWebsocketApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(MessagingStompWebsocketApplication.class, args);
+	}
+
+}
+package com.example.messagingstompwebsocket;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
+import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
+import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+
+@Slf4j
+@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+	@Value("${app-simple-broker}")
+	String simpleBroker;
+	@Value("${app-application-prefix}")
+	String applicationPrefix;
+	@Value("${app-endpoint}")
+	String endpoint;
+	@Override
+	public void configureMessageBroker(MessageBrokerRegistry config) {
+		config.enableSimpleBroker(simpleBroker);
+		config.setApplicationDestinationPrefixes(applicationPrefix);
+	}
+
+	@Override
+	public void registerStompEndpoints(StompEndpointRegistry registry) {
+		log.info("registerStompEndpoints");
+		registry.addEndpoint(endpoint);
+	}
+
+}
+package com.example.messagingstompwebsocket;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
+import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
+import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+
+@Slf4j
+@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+	@Override
+	public void configureMessageBroker(MessageBrokerRegistry config) {
+		config.enableSimpleBroker("/topic");
+		config.setApplicationDestinationPrefixes("/app");
+	}
+
+	@Override
+	public void registerStompEndpoints(StompEndpointRegistry registry) {
+		log.info("registerStompEndpoints");
+		registry.addEndpoint("/gs-guide-websocket");
+	}
+
+}
+

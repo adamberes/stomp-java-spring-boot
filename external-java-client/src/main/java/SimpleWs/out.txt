@@ -1,0 +1,218 @@
+package SimpleWs;
+
+import lombok.Data;
+
+@Data
+public class Greeting {
+
+	private String content;
+
+}
+package SimpleWs;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.web.socket.client.WebSocketConnectionManager;
+import org.springframework.web.socket.client.standard.StandardWebSocketClient;
+import org.springframework.web.socket.messaging.WebSocketStompClient;
+
+//https://github.com/GleidsonSilva/springboot-ws-client/blob/master/src/main/java/gs/ws/SimpleWsHandler.java
+/**
+ * Sample application for understanding how does springboot can be used as a WS client.
+ */
+@SpringBootApplication
+public class SimpleWsApplication {
+
+    private final String webSocketUri = "ws://localhost:8080/gs-guide-websocket";
+
+    public static void main(String[] args) {
+        SpringApplication.run(SimpleWsApplication.class, args);
+    }
+
+    @Bean
+    public WebSocketConnectionManager wsConnectionManager() {
+
+        WebSocketStompClient stompClient = new WebSocketStompClient(new StandardWebSocketClient());
+        StandardWebSocketClient standardWebSocketClient = new StandardWebSocketClient();
+        //Generates a web socket connection
+        WebSocketConnectionManager manager = new WebSocketConnectionManager(
+                standardWebSocketClient,
+                new SimpleWsHandler(), //Must be defined to handle messages
+                this.webSocketUri);
+
+        //Will connect as soon as possible
+        manager.setAutoStartup(true);
+
+        return manager;
+    }
+}package SimpleWs;
+
+
+import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.WebSocketHandler;
+import org.springframework.web.socket.WebSocketMessage;
+import org.springframework.web.socket.WebSocketSession;
+
+/**
+ * Handle server connection in low level
+ */
+public class SimpleWsHandler implements WebSocketHandler {
+
+    /**
+     * Called when WS connects to the server.
+     */
+    @Override
+    public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+
+    }
+
+    /**
+     * Main method to handle server messages.
+     * Do not use low level, dont mix up with Somp
+     */
+    @Override
+    public void handleMessage(WebSocketSession session, WebSocketMessage<?> message) throws Exception {
+    }
+
+    /**
+     * Error handling.
+     */
+    @Override
+    public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
+    }
+
+    /**
+     * Called when WS is closed.
+     */
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus closeStatus) throws Exception {
+
+    }
+
+    @Override
+    public boolean supportsPartialMessages() {
+        // TODO Auto-generated method stub
+        return false;
+    }
+
+}package SimpleWs;
+
+import jakarta.annotation.PreDestroy;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.converter.MappingJackson2MessageConverter;
+import org.springframework.messaging.simp.stomp.StompCommand;
+import org.springframework.messaging.simp.stomp.StompHeaders;
+import org.springframework.messaging.simp.stomp.StompSession;
+import org.springframework.messaging.simp.stomp.StompSessionHandler;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.socket.client.WebSocketClient;
+import org.springframework.web.socket.client.standard.StandardWebSocketClient;
+import org.springframework.web.socket.messaging.WebSocketStompClient;
+
+import java.lang.reflect.Type;
+
+/**
+ * Controller for the connection to the STOMP server.
+ */
+@Slf4j
+@Controller
+@RequiredArgsConstructor
+public class StompController implements StompSessionHandler  {
+    @Value("${app-websocket}")
+    String websocket;
+    @Value("${app-topic}")
+    String topic;
+    private StompSession stompSession;
+
+    @EventListener(value = ApplicationReadyEvent.class)
+    public void connect() {
+        WebSocketClient client = new StandardWebSocketClient();
+        WebSocketStompClient stompClient = new WebSocketStompClient(client);
+        stompClient.setMessageConverter(new MappingJackson2MessageConverter());
+        try {
+            stompSession = stompClient
+                    .connectAsync(websocket, this)
+                    .get();
+        } catch (Exception e) {
+            log.info("Connection failed: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    public void afterConnected(StompSession session, StompHeaders connectedHeaders) {
+        log.info("Connection to STOMP server established.\nSession: {}\nHeaders: {}\n", session, connectedHeaders);
+
+        subscribe(topic);
+    }
+
+    public void subscribe(String topicId) {
+        log.info("Subscribing to topic: {}", topicId);
+        stompSession.subscribe(topicId, this);
+    }
+
+    @Override
+    public void handleFrame(StompHeaders headers, Object payload) {
+        if (payload == null) {
+            log.info("Received null payload. Headers: {}", headers);
+            return;
+        }
+
+        try {
+            Greeting message = (Greeting) payload;
+            log.info("Received message: {}", message.getContent());
+        } catch (ClassCastException e) {
+            log.info("Payload type mismatch. Received: {}", payload.getClass());
+        }
+    }
+
+    @Override
+    public Type getPayloadType(StompHeaders headers) {
+        return Greeting.class;  // Changed to match what you expect to receive
+    }
+    /**
+     * Unsubscribe and close connection before destroying this instance (e.g. on application shutdown).
+     */
+    @PreDestroy
+    void onShutDown() {
+        if (stompSession != null) {
+            stompSession.disconnect();
+        }
+    }
+    @Override
+    public void handleTransportError(StompSession session, Throwable exception) {
+        log.info("Transport error occurred: {}", exception.getMessage());
+        if (!session.isConnected()) {
+            log.info("Attempting to reconnect...");
+            connect();
+        }
+    }
+    @Override
+    public void handleException(StompSession session, StompCommand command,
+                                StompHeaders headers, byte[] payload, Throwable exception) {
+        log.info("Handling exception: {}", exception.getMessage());
+    }
+}package SimpleWs;
+
+public class StompMessage {
+    String message;
+
+    public StompMessage() {}
+
+    public StompMessage(String message) {
+        this.message = message;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
+    }
+}
+
